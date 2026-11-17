@@ -346,408 +346,620 @@
 
     <!-- JavaScript -->
     <script>
-        const SUPABASE_URL = 'https://seiddcpeneobfcpgqbtk.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_N9VqWGOsV95ElNOBLy2vng_wqzc9Eb0';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_URL = 'https://seiddcpeneobfcpgqbtk.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_N9VqWGOsV95ElNOBLy2vng_wqzc9Eb0';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const TELEGRAM_BOT_TOKEN = '9209110726:AAE8dm0-oK-uXegseMYzyyHzCFDLof3Za74';
-        const TELEGRAM_CHAT_ID = '6250879624,';
+    const FALLBACK_IMG = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop';
 
-        const FALLBACK_IMG = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop';
-        
-        const DEFAULT_PRODUCTS = [
-            { id: 'q1', name: 'Executive Tailored Suit', category: 'suit', price: 3450, image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop', fabric: 'Heavyweight Matte Crepe' },
-            { id: 'q2', name: 'Sahara Sand Daily Outfit', category: 'outfit', price: 2850, image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop', fabric: '100% Egyptian Linen' },
-            { id: 'q3', name: 'Minimalist Cotton T-Shirt', category: 't-shirt', price: 1200, image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800&auto=format&fit=crop', fabric: 'Pure Combed Cotton' },
-            { id: 'q4', name: 'Comfort Lounge Sweetpants', category: 'sweetpants', price: 1650, image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop', fabric: 'Organic Fleece Blend' }
-        ];
+    const DEFAULT_PRODUCTS = [
+        { id: 'q1', name: 'Executive Tailored Suit', category: 'suit', price: 3450, image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop', fabric: 'Heavyweight Matte Crepe' },
+        { id: 'q2', name: 'Sahara Sand Daily Outfit', category: 'outfit', price: 2850, image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop', fabric: '100% Egyptian Linen' },
+        { id: 'q3', name: 'Minimalist Cotton T-Shirt', category: 't-shirt', price: 1200, image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800&auto=format&fit=crop', fabric: 'Pure Combed Cotton' },
+        { id: 'q4', name: 'Comfort Lounge Sweetpants', category: 'sweetpants', price: 1650, image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop', fabric: 'Organic Fleece Blend' }
+    ];
 
-        let PRODUCTS = [];
-        let cart = [];
-        let orders = [];
-        let isAdminMode = false;
+    let PRODUCTS = [];
+    let cart = [];
+    let orders = [];
+    let isAdminMode = false;
 
-        document.addEventListener('DOMContentLoaded', async () => {
+    const selectedSizes = {};
+
+    // INITIALIZATION
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
             cart = JSON.parse(localStorage.getItem('qova_cart') || '[]');
             orders = JSON.parse(localStorage.getItem('qova_customer_orders') || '[]');
-            isAdminMode = localStorage.getItem('qova_admin_logged') === 'true';
-            
-            await fetchProductsFromDb();
+        } catch (error) {
+            cart = [];
+            orders = [];
+        }
 
-            if (isAdminMode) enableAdminUI();
-            updateCartUI();
-            updateOrdersCount();
+        isAdminMode = false;
+
+        // Restore Supabase session and verify admin permission
+        const { data: sessionData, error: sessionError } =
+            await supabaseClient.auth.getSession();
+
+        if (!sessionError && sessionData.session) {
+            const { data, error } =
+                await supabaseClient.rpc('is_qova_admin');
+
+            if (!error && data === true) {
+                isAdminMode = true;
+                enableAdminUI();
+            } else {
+                await supabaseClient.auth.signOut();
+            }
+        }
+
+        await fetchProductsFromDb();
+
+        updateCartUI();
+        updateOrdersCount();
+    });
+
+    // PRODUCTS
+    async function fetchProductsFromDb() {
+        const { data, error } =
+            await supabaseClient.from('products').select('*');
+
+        if (error) {
+            console.error('Error fetching products:', error);
+            PRODUCTS = [...DEFAULT_PRODUCTS];
+        } else if (data && data.length > 0) {
+            PRODUCTS = data.map(row => ({
+                id: row.id,
+                ...row.product_data
+            }));
+        } else {
+            PRODUCTS = [...DEFAULT_PRODUCTS];
+        }
+
+        renderProducts(PRODUCTS);
+    }
+
+    function renderProducts(items) {
+        const grid = document.getElementById('product-grid');
+        grid.innerHTML = '';
+
+        items.forEach(product => {
+            const card = document.createElement('div');
+
+            card.className =
+                'group flex flex-col bg-qova-cream rounded-2xl overflow-hidden border border-qova-beige/60 shadow-md transition hover:shadow-xl';
+
+            const adminHeader = isAdminMode ? `
+                <div class="bg-qova-charcoal text-white p-2 text-xs flex justify-between items-center border-b border-qova-gold">
+                    <span class="text-[10px] text-qova-gold font-bold">ADMIN CONTROLS</span>
+                    <button type="button" onclick="deleteProduct('${product.id}')"
+                        class="bg-red-800 text-white px-2 py-0.5 rounded text-[10px] hover:bg-red-600 transition">
+                        <i class="fa-solid fa-trash"></i> Delete
+                    </button>
+                </div>
+            ` : '';
+
+            card.innerHTML = `
+                ${adminHeader}
+                <div class="relative aspect-[3/4] overflow-hidden bg-qova-sand cursor-pointer"
+                    onclick="openImageModal('${product.image}')"
+                    title="Click to view full image">
+                    <img src="${product.image}"
+                        onerror="this.onerror=null;this.src='${FALLBACK_IMG}';"
+                        alt="${product.name}"
+                        class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                    <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <span class="bg-white/90 text-qova-charcoal px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-md">
+                            <i class="fa-solid fa-expand"></i> View Full Image
+                        </span>
+                    </div>
+                </div>
+
+                <div class="p-5 flex flex-col flex-1">
+                    <span class="text-[10px] uppercase tracking-widest text-qova-gold font-bold">${product.category}</span>
+                    <h3 class="font-serif text-lg text-qova-charcoal font-semibold mt-0.5">${product.name}</h3>
+                    <p class="text-xs text-qova-slate mt-1">${product.fabric || 'Custom Luxury Tailoring'}</p>
+
+                    <div class="mt-3">
+                        <label class="block text-[10px] uppercase tracking-wider text-qova-slate font-semibold mb-1">Select Size:</label>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="selectSize('${product.id}', 'S', this)"
+                                class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">S</button>
+                            <button type="button" onclick="selectSize('${product.id}', 'M', this)"
+                                class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-gold bg-qova-gold text-qova-charcoal font-bold rounded-lg transition">M</button>
+                            <button type="button" onclick="selectSize('${product.id}', 'L', this)"
+                                class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">L</button>
+                            <button type="button" onclick="selectSize('${product.id}', 'XL', this)"
+                                class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">XL</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto pt-4 flex items-center justify-between border-t border-qova-beige/50">
+                        <span class="font-serif text-lg font-bold text-qova-charcoal">${product.price} EGP</span>
+                        <button type="button" onclick="addToCartWithSelectedSize('${product.id}')"
+                            class="bg-qova-gold text-qova-charcoal hover:bg-qova-charcoal hover:text-white px-3.5 py-2 rounded-xl font-bold text-xs transition">
+                            Add to Bag
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            grid.appendChild(card);
+        });
+    }
+
+    // CART
+    function selectSize(productId, size, btn) {
+        selectedSizes[productId] = size;
+
+        document.querySelectorAll(`.size-btn-${productId}`).forEach(button => {
+            button.classList.remove('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
+            button.classList.add('border-qova-beige');
         });
 
-        async function fetchProductsFromDb() {
-            const { data, error } = await supabaseClient.from('products').select('*');
-            if (error) {
-                console.error('Error fetching products:', error);
-                PRODUCTS = [...DEFAULT_PRODUCTS];
-            } else if (data && data.length > 0) {
-                PRODUCTS = data.map(row => ({
-                    id: row.id,
-                    ...row.product_data
-                }));
-            } else {
-                PRODUCTS = [...DEFAULT_PRODUCTS];
-                for (let p of PRODUCTS) {
-                    await supabaseClient.from('products').insert([{
-                        id: p.id,
-                        product_data: { name: p.name, category: p.category, price: p.price, image: p.image, fabric: p.fabric }
-                    }]);
-                }
-            }
-            renderProducts(PRODUCTS);
-        }
+        btn.classList.add('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
+        btn.classList.remove('border-qova-beige');
+    }
 
-        function saveOrdersPermanently() {
-            localStorage.setItem('qova_customer_orders', JSON.stringify(orders));
-            updateOrdersCount();
-        }
+    function addToCartWithSelectedSize(id) {
+        const product = PRODUCTS.find(item => item.id === id);
+        if (!product) return;
 
-        function updateOrdersCount() {
-            document.getElementById('orders-count').innerText = orders.length;
-        }
+        const chosenSize = selectedSizes[id] || 'M';
+        const itemKey = `${id}-${chosenSize}`;
+        const existingItem = cart.find(item => item.itemKey === itemKey);
 
-        function renderProducts(items) {
-            const grid = document.getElementById('product-grid');
-            grid.innerHTML = '';
-            
-            items.forEach(product => {
-                const card = document.createElement('div');
-                card.className = 'group flex flex-col bg-qova-cream rounded-2xl overflow-hidden border border-qova-beige/60 shadow-md transition hover:shadow-xl';
-                
-                const adminHeader = isAdminMode ? `
-                    <div class="bg-qova-charcoal text-white p-2 text-xs flex justify-between items-center border-b border-qova-gold">
-                        <span class="text-[10px] text-qova-gold font-bold">ADMIN CONTROLS</span>
-                        <button onclick="deleteProduct('${product.id}')" class="bg-red-800 text-white px-2 py-0.5 rounded text-[10px] hover:bg-red-600 transition"><i class="fa-solid fa-trash"></i> Delete</button>
-                    </div>
-                ` : '';
-
-                card.innerHTML = `
-                    ${adminHeader}
-                    <div class="relative aspect-[3/4] overflow-hidden bg-qova-sand cursor-pointer" onclick="openImageModal('${product.image}')" title="Click to view full image">
-                        <img src="${product.image}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" alt="${product.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
-                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                            <span class="bg-white/90 text-qova-charcoal px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-md"><i class="fa-solid fa-expand"></i> View Full Image</span>
-                        </div>
-                    </div>
-                    <div class="p-5 flex flex-col flex-1">
-                        <span class="text-[10px] uppercase tracking-widest text-qova-gold font-bold">${product.category}</span>
-                        <h3 class="font-serif text-lg text-qova-charcoal font-semibold mt-0.5">${product.name}</h3>
-                        <p class="text-xs text-qova-slate mt-1">${product.fabric || 'Custom Luxury Tailoring'}</p>
-                        
-                        <div class="mt-3">
-                            <label class="block text-[10px] uppercase tracking-wider text-qova-slate font-semibold mb-1">Select Size:</label>
-                            <div class="flex gap-2" id="sizes-${product.id}">
-                                <button type="button" onclick="selectSize('${product.id}', 'S', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">S</button>
-                                <button type="button" onclick="selectSize('${product.id}', 'M', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-gold bg-qova-gold text-qova-charcoal font-bold rounded-lg transition">M</button>
-                                <button type="button" onclick="selectSize('${product.id}', 'L', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">L</button>
-                                <button type="button" onclick="selectSize('${product.id}', 'XL', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">XL</button>
-                            </div>
-                        </div>
-
-                        <div class="mt-auto pt-4 flex items-center justify-between border-t border-qova-beige/50">
-                            <span class="font-serif text-lg font-bold text-qova-charcoal">${product.price} EGP</span>
-                            <button onclick="addToCartWithSelectedSize('${product.id}')" class="bg-qova-gold text-qova-charcoal hover:bg-qova-charcoal hover:text-white px-3.5 py-2 rounded-xl font-bold text-xs transition">Add to Bag</button>
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
+        if (existingItem) {
+            existingItem.quantity += 1;
+        } else {
+            cart.push({
+                ...product,
+                itemKey,
+                size: chosenSize,
+                quantity: 1
             });
         }
 
-        const selectedSizes = {};
-        function selectSize(productId, size, btn) {
-            selectedSizes[productId] = size;
-            const buttons = document.querySelectorAll(`.size-btn-${productId}`);
-            buttons.forEach(b => {
-                b.classList.remove('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
-                b.classList.add('border-qova-beige');
-            });
-            btn.classList.add('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
-            btn.classList.remove('border-qova-beige');
-        }
+        localStorage.setItem('qova_cart', JSON.stringify(cart));
+        updateCartUI();
+        showToast(`Added (${chosenSize}) to bag!`);
+    }
 
-        function addToCartWithSelectedSize(id) {
-            const p = PRODUCTS.find(item => item.id === id);
-            if(!p) return;
-            const chosenSize = selectedSizes[id] || 'M';
-            const itemKey = `${id}-${chosenSize}`;
-            const existingItem = cart.find(i => i.itemKey === itemKey);
+    function removeFromCart(itemKey) {
+        cart = cart.filter(item => item.itemKey !== itemKey);
+        localStorage.setItem('qova_cart', JSON.stringify(cart));
+        updateCartUI();
+        showToast('Item removed from bag');
+    }
 
-            if (existingItem) {
-                existingItem.quantity += 1;
-            } else {
-                cart.push({ ...p, itemKey: itemKey, size: chosenSize, quantity: 1 });
-            }
+    function updateCartUI() {
+        document.getElementById('cart-badge').innerText =
+            cart.reduce((sum, item) => sum + item.quantity, 0);
 
-            localStorage.setItem('qova_cart', JSON.stringify(cart));
-            updateCartUI();
-            showToast(`Added (${chosenSize}) to bag!`);
-        }
+        const list = document.getElementById('cart-items-list');
 
-        function removeFromCart(itemKey) {
-            cart = cart.filter(i => i.itemKey !== itemKey);
-            localStorage.setItem('qova_cart', JSON.stringify(cart));
-            updateCartUI();
-            showToast('Item removed from bag');
-        }
+        list.innerHTML = cart.length === 0
+            ? '<p class="text-center text-xs text-qova-slate py-8">Bag is currently empty.</p>'
+            : '';
 
-        function updateCartUI() {
-            document.getElementById('cart-badge').innerText = cart.reduce((s, i) => s + i.quantity, 0);
-            const list = document.getElementById('cart-items-list');
-            list.innerHTML = cart.length === 0 ? '<p class="text-center text-xs text-qova-slate py-8">Bag is currently empty.</p>' : '';
-            
-            let total = 0;
-            cart.forEach(i => {
-                total += i.price * i.quantity;
-                list.innerHTML += `
-                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-qova-beige text-xs">
-                        <div>
-                            <p class="font-semibold text-qova-charcoal">${i.name}</p>
-                            <p class="text-qova-gold font-bold">Size: ${i.size} | ${i.price} EGP × ${i.quantity}</p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-bold">${i.price * i.quantity} EGP</span>
-                            <button onclick="removeFromCart('${i.itemKey}')" class="text-red-600 hover:text-red-800 p-1 text-sm"><i class="fa-solid fa-trash"></i></button>
-                        </div>
+        let total = 0;
+
+        cart.forEach(item => {
+            total += item.price * item.quantity;
+
+            list.innerHTML += `
+                <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-qova-beige text-xs">
+                    <div>
+                        <p class="font-semibold text-qova-charcoal">${item.name}</p>
+                        <p class="text-qova-gold font-bold">
+                            Size: ${item.size} | ${item.price} EGP × ${item.quantity}
+                        </p>
                     </div>
-                `;
-            });
-            document.getElementById('cart-total').innerText = total + ' EGP';
-        }
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold">${item.price * item.quantity} EGP</span>
+                        <button type="button" onclick="removeFromCart('${item.itemKey}')"
+                            class="text-red-600 hover:text-red-800 p-1 text-sm">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
 
-        function openImageModal(imgUrl) {
-            document.getElementById('lightbox-img').src = imgUrl;
-            document.getElementById('image-modal').classList.remove('hidden');
-        }
+        document.getElementById('cart-total').innerText = total + ' EGP';
+    }
 
-        function closeImageModal() {
-            document.getElementById('image-modal').classList.add('hidden');
-        }
+    // IMAGE AND CATEGORY
+    function openImageModal(imgUrl) {
+        document.getElementById('lightbox-img').src = imgUrl;
+        document.getElementById('image-modal').classList.remove('hidden');
+    }
 
-        function filterCategory(cat) {
-            if (cat === 'all') renderProducts(PRODUCTS);
-            else renderProducts(PRODUCTS.filter(p => p.category === cat));
-        }
+    function closeImageModal() {
+        document.getElementById('image-modal').classList.add('hidden');
+    }
 
-        function openAdminModal() { document.getElementById('admin-login-modal').classList.remove('hidden'); }
-        function closeAdminModal() { document.getElementById('admin-login-modal').classList.add('hidden'); }
-
-        function handleAdminLogin(e) {
-            e.preventDefault();
-            const email = document.getElementById('admin-email').value.trim();
-            const pass = document.getElementById('admin-pass').value.trim();
-
-            if (email === 'govabrandaaannn123@gmail.com' && pass === 'QOVAABDODIDA1011') {
-                isAdminMode = true;
-                localStorage.setItem('qova_admin_logged', 'true');
-                closeAdminModal();
-                enableAdminUI();
-                renderProducts(PRODUCTS);
-                showToast('Admin Mode Activated!');
-            } else {
-                document.getElementById('admin-err').classList.remove('hidden');
-            }
-        }
-
-        function enableAdminUI() {
-            document.getElementById('admin-banner').classList.remove('hidden');
-            document.body.classList.add('admin-mode');
-        }
-
-        function adminLogout() {
-            isAdminMode = false;
-            localStorage.setItem('qova_admin_logged', 'false');
-            document.getElementById('admin-banner').classList.add('hidden');
-            document.getElementById('add-product-panel').classList.add('hidden');
-            document.body.classList.remove('admin-mode');
+    function filterCategory(category) {
+        if (category === 'all') {
             renderProducts(PRODUCTS);
-            showToast('Logged out to Customer View');
+        } else {
+            renderProducts(PRODUCTS.filter(product => product.category === category));
         }
+    }
 
-        async function deleteProduct(id) {
-            const { error } = await supabaseClient.from('products').delete().eq('id', id);
-            if (error) {
-                alert('Error deleting product');
+    // ADMIN AUTHENTICATION
+    function openAdminModal() {
+        document.getElementById('admin-login-modal').classList.remove('hidden');
+        document.getElementById('admin-err').classList.add('hidden');
+    }
+
+    function closeAdminModal() {
+        document.getElementById('admin-login-modal').classList.add('hidden');
+    }
+
+    async function handleAdminLogin(e) {
+        e.preventDefault();
+
+        const email = document.getElementById('admin-email').value.trim();
+        const password = document.getElementById('admin-pass').value;
+        const errorBox = document.getElementById('admin-err');
+        const submitButton = e.target.querySelector('button[type="submit"]');
+
+        errorBox.classList.add('hidden');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Checking...';
+
+        try {
+            const { error: loginError } =
+                await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+            if (loginError) {
+                errorBox.textContent = 'Invalid email or password.';
+                errorBox.classList.remove('hidden');
                 return;
             }
-            PRODUCTS = PRODUCTS.filter(p => p.id !== id);
+
+            const { data, error } =
+                await supabaseClient.rpc('is_qova_admin');
+
+            if (error || data !== true) {
+                await supabaseClient.auth.signOut();
+
+                errorBox.textContent = 'This account is not an authorized admin.';
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
+            isAdminMode = true;
+
+            closeAdminModal();
+            enableAdminUI();
             renderProducts(PRODUCTS);
-            showToast('Product removed from database!');
+
+            document.getElementById('admin-pass').value = '';
+
+            showToast('Admin Mode Activated!');
+
+        } catch (error) {
+            console.error('Admin login error:', error);
+            errorBox.textContent = 'Login failed. Please try again.';
+            errorBox.classList.remove('hidden');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Unlock Admin Control';
+        }
+    }
+
+    function enableAdminUI() {
+        if (!isAdminMode) return;
+
+        document.getElementById('admin-banner').classList.remove('hidden');
+        document.body.classList.add('admin-mode');
+    }
+
+    async function adminLogout() {
+        try {
+            await supabaseClient.auth.signOut();
+        } catch (error) {
+            console.error('Logout error:', error);
         }
 
-        async function handleAddNewProduct(e) {
-            e.preventDefault();
-            const imgInput = document.getElementById('new-p-img').value.trim();
-            
-            const newId = 'qova-' + Date.now();
-            const productObj = {
-                name: document.getElementById('new-p-name').value.trim(),
-                category: document.getElementById('new-p-cat').value,
-                price: parseFloat(document.getElementById('new-p-price').value),
-                image: imgInput || FALLBACK_IMG,
-                fabric: 'Custom Luxury Tailoring'
-            };
+        isAdminMode = false;
 
-            const { error } = await supabaseClient.from('products').insert([{
-                id: newId,
-                product_data: productObj
-            }]);
+        document.getElementById('admin-banner').classList.add('hidden');
+        document.getElementById('add-product-panel').classList.add('hidden');
+        document.getElementById('orders-modal').classList.add('hidden');
 
-            if (error) {
-                alert('Error adding product to database');
-                return;
-            }
-            
-            PRODUCTS.unshift({ id: newId, ...productObj });
-            renderProducts(PRODUCTS);
-            toggleAddProductForm();
-            e.target.reset();
-            showToast('Product published online successfully!');
+        document.body.classList.remove('admin-mode');
+
+        renderProducts(PRODUCTS);
+        showToast('Logged out successfully');
+    }
+
+    // ADMIN PRODUCT MANAGEMENT
+    async function deleteProduct(id) {
+        if (!isAdminMode) {
+            showToast('Admin access required');
+            return;
         }
 
-        function openCheckoutModal() {
-            if (cart.length === 0) {
-                alert('Your shopping bag is empty!');
-                return;
-            }
-            let total = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-            document.getElementById('checkout-modal-total').innerText = total + ' EGP';
-            
-            toggleCartDrawer();
-            document.getElementById('checkout-modal').classList.remove('hidden');
+        if (!confirm('Are you sure you want to delete this product?')) return;
+
+        const { error } =
+            await supabaseClient.from('products').delete().eq('id', id);
+
+        if (error) {
+            console.error(error);
+            alert('Error deleting product. Check your admin permissions.');
+            return;
         }
 
-        function closeCheckoutModal() {
-            document.getElementById('checkout-modal').classList.add('hidden');
+        PRODUCTS = PRODUCTS.filter(product => product.id !== id);
+        renderProducts(PRODUCTS);
+        showToast('Product removed from database!');
+    }
+
+    async function handleAddNewProduct(e) {
+        e.preventDefault();
+
+        if (!isAdminMode) {
+            showToast('Admin access required');
+            return;
         }
 
-        function handleCheckoutSubmit(e) {
-            e.preventDefault();
+        const name = document.getElementById('new-p-name').value.trim();
+        const category = document.getElementById('new-p-cat').value;
+        const price = Number(document.getElementById('new-p-price').value);
+        const image = document.getElementById('new-p-img').value.trim();
 
-            let orderSummary = cart.map(i => `• ${i.name} (مقاس: ${i.size} | كمية: ${i.quantity}) - ${i.price * i.quantity} EGP`).join('\n');
-            let totalAmount = cart.reduce((s, i) => s + (i.price * i.quantity), 0) + ' EGP';
-            let method = document.getElementById('cust-payment').value;
-            let name = document.getElementById('cust-name').value;
-            let phone = document.getElementById('cust-phone').value;
-            let email = document.getElementById('cust-email').value;
-            let gov = document.getElementById('cust-gov').value;
-            let address = document.getElementById('cust-address').value;
-            let notes = document.getElementById('cust-notes').value || 'لا يوجد';
-
-            let messageText = `🛍️ *أوردر جديد في متجر QOVA!*\n\n` +
-                              `👤 *العميل:* ${name}\n` +
-                              `📞 *التليفون:* ${phone}\n` +
-                              `📧 *الإيميل:* ${email}\n` +
-                              `📍 *المحافظة:* ${gov}\n` +
-                              `🏠 *العنوان:* ${address}\n` +
-                              `💳 *طريقة الدفع:* ${method}\n` +
-                              `📝 *ملاحظات:* ${notes}\n\n` +
-                              `🛒 *المنتجات المطلوبة:*\n${orderSummary}\n\n` +
-                              `💰 *الإجمالي النهائي:* ${totalAmount}`;
-
-            let telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&parse_mode=Markdown&text=` + encodeURIComponent(messageText);
-            
-            fetch(telegramUrl).catch(() => {});
-
-            const newOrder = {
-                id: 'ord-' + Date.now(),
-                name, phone, email, governorate: gov, address,
-                paymentMethod: method,
-                receiptStatus: 'None',
-                notes, items: [...cart], total: totalAmount,
-                date: new Date().toLocaleString()
-            };
-            orders.unshift(newOrder);
-            saveOrdersPermanently();
-
-            cart = [];
-            localStorage.removeItem('qova_cart');
-            
-            showToast('تم إرسال الطلب بنجاح!');
-            
-            setTimeout(() => {
-                closeCheckoutModal();
-                window.location.href = window.location.pathname;
-            }, 1000);
+        if (!name || !image || !Number.isFinite(price) || price <= 0) {
+            alert('Please enter valid product details.');
+            return;
         }
 
-        function toggleOrdersModal() {
-            const modal = document.getElementById('orders-modal');
-            modal.classList.toggle('hidden');
-            if (!modal.classList.contains('hidden')) {
-                renderOrdersList();
-            }
+        const newId = 'qova-' + Date.now();
+
+        const productObj = {
+            name,
+            category,
+            price,
+            image,
+            fabric: 'Custom Luxury Tailoring'
+        };
+
+        const { error } = await supabaseClient.from('products').insert([{
+            id: newId,
+            product_data: productObj
+        }]);
+
+        if (error) {
+            console.error(error);
+            alert('Error adding product. Check your admin permissions.');
+            return;
         }
 
-        function renderOrdersList() {
-            const container = document.getElementById('orders-list-container');
-            if (orders.length === 0) {
-                container.innerHTML = '<p class="text-center text-xs text-qova-slate py-8">No customer orders recorded yet.</p>';
-                return;
-            }
+        PRODUCTS.unshift({ id: newId, ...productObj });
 
-            container.innerHTML = '';
-            orders.forEach(order => {
-                let itemsHtml = order.items.map(i => `<li class="text-[11px] text-qova-slate">• ${i.name} (Size: ${i.size}, Qty: ${i.quantity}x) - ${i.price * i.quantity} EGP</li>`).join('');
-                
-                const card = document.createElement('div');
-                card.className = 'bg-white p-4 rounded-xl border border-qova-beige shadow-sm space-y-2 text-xs';
-                card.innerHTML = `
-                    <div class="flex justify-between items-center border-b border-qova-beige pb-2">
-                        <span class="font-bold text-qova-charcoal">Order #${order.id} (${order.date})</span>
-                        <button onclick="deleteOrder('${order.id}')" class="bg-red-800 text-white px-2 py-1 rounded text-[10px] hover:bg-red-600 transition"><i class="fa-solid fa-trash"></i> Delete Order</button>
+        renderProducts(PRODUCTS);
+        toggleAddProductForm();
+        e.target.reset();
+
+        showToast('Product published online successfully!');
+    }
+
+    // CHECKOUT
+    function openCheckoutModal() {
+        if (cart.length === 0) {
+            alert('Your shopping bag is empty!');
+            return;
+        }
+
+        const total = cart.reduce(
+            (sum, item) => sum + (item.price * item.quantity), 0
+        );
+
+        document.getElementById('checkout-modal-total').innerText = total + ' EGP';
+
+        toggleCartDrawer();
+        document.getElementById('checkout-modal').classList.remove('hidden');
+    }
+
+    function closeCheckoutModal() {
+        document.getElementById('checkout-modal').classList.add('hidden');
+    }
+
+    function handleCheckoutSubmit(e) {
+        e.preventDefault();
+
+        if (cart.length === 0) {
+            alert('Your shopping bag is empty!');
+            return;
+        }
+
+        const orderSummary = cart.map(item =>
+            `• ${item.name} (مقاس: ${item.size} | كمية: ${item.quantity}) - ${item.price * item.quantity} EGP`
+        ).join('\n');
+
+        const totalAmount =
+            cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) + ' EGP';
+
+        const method = document.getElementById('cust-payment').value;
+        const name = document.getElementById('cust-name').value.trim();
+        const phone = document.getElementById('cust-phone').value.trim();
+        const email = document.getElementById('cust-email').value.trim();
+        const gov = document.getElementById('cust-gov').value;
+        const address = document.getElementById('cust-address').value.trim();
+        const notes = document.getElementById('cust-notes').value.trim() || 'لا يوجد';
+
+        const newOrder = {
+            id: 'ord-' + Date.now(),
+            name,
+            phone,
+            email,
+            governorate: gov,
+            address,
+            paymentMethod: method,
+            receiptStatus: 'None',
+            notes,
+            items: [...cart],
+            total: totalAmount,
+            summary: orderSummary,
+            date: new Date().toLocaleString()
+        };
+
+        // Current demo behavior: saved only in this browser.
+        orders.unshift(newOrder);
+        saveOrdersPermanently();
+
+        cart = [];
+        localStorage.removeItem('qova_cart');
+
+        updateCartUI();
+
+        showToast('Demo order saved on this device only.');
+
+        alert(
+            'تم حفظ الطلب على هذا الجهاز فقط.\n' +
+            'الطلب لم يتم إرساله إلى المتجر أو Telegram.'
+        );
+
+        setTimeout(() => {
+            closeCheckoutModal();
+            window.location.href = window.location.pathname;
+        }, 1000);
+    }
+
+    // ORDERS DASHBOARD
+    function saveOrdersPermanently() {
+        localStorage.setItem('qova_customer_orders', JSON.stringify(orders));
+        updateOrdersCount();
+    }
+
+    function updateOrdersCount() {
+        document.getElementById('orders-count').innerText = orders.length;
+    }
+
+    function toggleOrdersModal() {
+        if (!isAdminMode) {
+            showToast('Admin access required');
+            return;
+        }
+
+        const modal = document.getElementById('orders-modal');
+        modal.classList.toggle('hidden');
+
+        if (!modal.classList.contains('hidden')) {
+            renderOrdersList();
+        }
+    }
+
+    function renderOrdersList() {
+        if (!isAdminMode) return;
+
+        const container = document.getElementById('orders-list-container');
+
+        if (orders.length === 0) {
+            container.innerHTML =
+                '<p class="text-center text-xs text-qova-slate py-8">No customer orders recorded yet.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        orders.forEach(order => {
+            const itemsHtml = order.items.map(item =>
+                `<li class="text-[11px] text-qova-slate">• ${item.name} (Size: ${item.size}, Qty: ${item.quantity}x) - ${item.price * item.quantity} EGP</li>`
+            ).join('');
+
+            const card = document.createElement('div');
+
+            card.className =
+                'bg-white p-4 rounded-xl border border-qova-beige shadow-sm space-y-2 text-xs';
+
+            card.innerHTML = `
+                <div class="flex justify-between items-center border-b border-qova-beige pb-2">
+                    <span class="font-bold text-qova-charcoal">Order #${order.id} (${order.date})</span>
+                    <button type="button" onclick="deleteOrder('${order.id}')"
+                        class="bg-red-800 text-white px-2 py-1 rounded text-[10px] hover:bg-red-600 transition">
+                        <i class="fa-solid fa-trash"></i> Delete Order
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                        <p><strong>Customer:</strong> ${order.name}</p>
+                        <p><strong>Phone:</strong> ${order.phone}</p>
+                        <p><strong>Email:</strong> ${order.email}</p>
+                        <p><strong>Method:</strong> <span class="text-qova-gold font-bold">${order.paymentMethod}</span></p>
+                        <p><strong>Receipt:</strong> ${order.receiptStatus}</p>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                            <p><strong>Customer:</strong> ${order.name}</p>
-                            <p><strong>Phone:</strong> ${order.phone}</p>
-                            <p><strong>Method:</strong> <span class="text-qova-gold font-bold">${order.paymentMethod}</span></p>
-                            <p><strong>Receipt:</strong> ${order.receiptStatus}</p>
-                        </div>
-                        <div>
-                            <p><strong>Governorate:</strong> ${order.governorate}</p>
-                            <p><strong>Address:</strong> ${order.address}</p>
-                            <p class="font-bold text-qova-gold mt-1">Total: ${order.total}</p>
-                        </div>
+                    <div>
+                        <p><strong>Governorate:</strong> ${order.governorate}</p>
+                        <p><strong>Address:</strong> ${order.address}</p>
+                        <p><strong>Notes:</strong> ${order.notes}</p>
+                        <p class="font-bold text-qova-gold mt-1">Total: ${order.total}</p>
                     </div>
-                    <div class="pt-2 border-t border-qova-beige/60">
-                        <p class="font-semibold text-qova-charcoal mb-1">Purchased Items:</p>
-                        <ul class="space-y-0.5">${itemsHtml}</ul>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
+                </div>
 
-        function deleteOrder(id) {
-            orders = orders.filter(o => o.id !== id);
+                <div class="pt-2 border-t border-qova-beige/60">
+                    <p class="font-semibold text-qova-charcoal mb-1">Purchased Items:</p>
+                    <ul class="space-y-0.5">${itemsHtml}</ul>
+                </div>
+            `;
+
+            container.appendChild(card);
+        });
+    }
+
+    function deleteOrder(id) {
+        if (!isAdminMode) return;
+
+        orders = orders.filter(order => order.id !== id);
+        saveOrdersPermanently();
+        renderOrdersList();
+        showToast('Order removed from history');
+    }
+
+    function clearAllOrders() {
+        if (!isAdminMode) return;
+
+        if (confirm('Are you sure you want to delete all orders history?')) {
+            orders = [];
             saveOrdersPermanently();
             renderOrdersList();
-            showToast('Order removed from history');
+            showToast('All orders cleared');
+        }
+    }
+
+    // GENERAL UI
+    function toggleCartDrawer() {
+        document.getElementById('cart-drawer').classList.toggle('hidden');
+    }
+
+    function toggleAddProductForm() {
+        if (!isAdminMode) {
+            showToast('Admin access required');
+            return;
         }
 
-        function clearAllOrders() {
-            if(confirm('Are you sure you want to delete all orders history?')) {
-                orders = [];
-                saveOrdersPermanently();
-                renderOrdersList();
-                showToast('All orders cleared');
-            }
-        }
+        document.getElementById('add-product-panel').classList.toggle('hidden');
+    }
 
-        function toggleCartDrawer() { document.getElementById('cart-drawer').classList.toggle('hidden'); }
-        function toggleAddProductForm() { document.getElementById('add-product-panel').classList.toggle('hidden'); }
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            document.getElementById('toast-message').innerText = msg;
-            t.classList.remove('translate-y-32', 'opacity-0');
-            setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3000);
-        }
-    </script>
+        document.getElementById('toast-message').innerText = msg;
+
+        toast.classList.remove('translate-y-32', 'opacity-0');
+
+        setTimeout(() => {
+            toast.classList.add('translate-y-32', 'opacity-0');
+        }, 3000);
+    }
+</script>
 </body>
 </html>
