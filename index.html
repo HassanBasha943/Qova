@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QOVA | Couture Cairo</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Montserrat:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        qova: {
+                            sand: '#F7F4EF',
+                            cream: '#FAF8F5',
+                            beige: '#E8E2D5',
+                            taupe: '#D5C9B8',
+                            gold: '#C5A880',
+                            charcoal: '#222220',
+                            terracotta: '#A65D4C',
+                            slate: '#68655F'
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['"Cormorant Garamond"', 'serif'],
+                        sans: ['Montserrat', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #F7F4EF; }
+        ::-webkit-scrollbar-thumb { background: #C5A880; border-radius: 3px; }
+        .bg-glass { background: rgba(250, 248, 245, 0.94); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-qova-sand text-qova-charcoal font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Sticky Admin Banner -->
+    <div id="admin-banner" class="hidden bg-qova-charcoal text-qova-gold text-xs font-semibold px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-2xl sticky top-0 z-50 border-b border-qova-gold/60">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-user-shield text-sm text-qova-gold animate-pulse"></i>
+            <span>QOVA ADMIN CONTROL MODE</span>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button type="button" onclick="toggleAddProductForm()" class="bg-qova-gold text-qova-charcoal px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase hover:bg-white transition flex items-center gap-1 shadow-md">
+                <i class="fa-solid fa-plus"></i> Add Product
+            </button>
+            <button type="button" onclick="toggleOrdersModal()" class="bg-qova-sand text-qova-charcoal px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase hover:bg-white transition flex items-center gap-1 shadow-md">
+                <i class="fa-solid fa-box-archive"></i> View Customer Orders (<span id="orders-count">0</span>)
+            </button>
+            <button type="button" onclick="adminLogout()" class="bg-red-900/80 text-white px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase hover:bg-red-700 transition">
+                Exit
+            </button>
+        </div>
+    </div>
+
+    <!-- Announcement Bar -->
+    <div class="bg-qova-charcoal text-qova-sand text-xs tracking-widest uppercase py-2.5 px-4 text-center font-light relative">
+        <span>✨ Complimentary express shipping on orders above 2,500 EGP</span>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 bg-glass border-b border-qova-beige/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between relative">
+            <nav class="hidden sm:flex items-center space-x-6 text-xs font-medium uppercase tracking-widest">
+                <button type="button" onclick="filterCategory('all')" class="hover:text-qova-gold transition py-1">All</button>
+                <button type="button" onclick="filterCategory('hoodie')" class="hover:text-qova-gold transition py-1">Hoodie</button>
+                <button type="button" onclick="filterCategory('suit')" class="hover:text-qova-gold transition py-1">Suit</button>
+                <button type="button" onclick="filterCategory('outfit')" class="hover:text-qova-gold transition py-1">Outfit</button>
+                <button type="button" onclick="filterCategory('t-shirt')" class="hover:text-qova-gold transition py-1">T-Shirt</button>
+                <button type="button" onclick="filterCategory('sweetpants')" class="hover:text-qova-gold transition py-1">Sweatpants</button>
+            </nav>
+
+            <div class="text-center mx-auto sm:mx-0">
+                <a href="#" class="font-serif text-3xl sm:text-4xl tracking-widest font-semibold uppercase text-qova-charcoal flex items-center justify-center gap-2">
+                    <span class="text-qova-gold font-light">✦</span> <span>QOVA</span>
+                </a>
+                <span class="block text-[9px] uppercase tracking-[0.3em] text-qova-slate font-light -mt-1">Couture Cairo</span>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <button type="button" onclick="openAdminModal()" class="text-xs text-qova-slate hover:text-qova-gold transition flex items-center gap-1">
+                    <i class="fa-solid fa-lock text-xs"></i> <span class="hidden sm:inline">Admin</span>
+                </button>
+
+                <button type="button" onclick="toggleCartDrawer()" class="text-qova-charcoal hover:text-qova-gold transition p-1.5 relative">
+                    <i class="fa-solid fa-bag-shopping text-xl"></i>
+                    <span id="cart-badge" class="absolute -top-1 -right-1 bg-qova-terracotta text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-sm">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Admin Login Modal -->
+    <div id="admin-login-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-qova-cream w-full max-w-md rounded-2xl shadow-2xl p-6 relative border border-qova-gold">
+            <button type="button" onclick="closeAdminModal()" class="absolute top-4 right-4 text-qova-slate hover:text-qova-charcoal p-2">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 bg-qova-gold/20 text-qova-gold rounded-full flex items-center justify-center mx-auto mb-2 text-xl">
+                    <i class="fa-solid fa-user-lock"></i>
+                </div>
+                <h3 class="font-serif text-2xl font-bold text-qova-charcoal">QOVA Admin Login</h3>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase font-medium text-qova-slate mb-1">Email</label>
+                    <input type="email" id="admin-email" required placeholder="admin@qova.eg" class="w-full bg-white border border-qova-beige rounded-xl p-3 text-xs focus:outline-none focus:border-qova-gold">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-medium text-qova-slate mb-1">Password</label>
+                    <input type="password" id="admin-pass" required placeholder="••••••••" class="w-full bg-white border border-qova-beige rounded-xl p-3 text-xs focus:outline-none focus:border-qova-gold">
+                </div>
+                <p id="admin-err" class="text-xs text-red-600 hidden font-semibold text-center">Invalid admin credentials.</p>
+                <button type="submit" class="w-full bg-qova-charcoal text-white py-3.5 rounded-xl text-xs font-semibold uppercase tracking-widest hover:bg-qova-gold hover:text-qova-charcoal transition shadow-lg">
+                    Unlock Admin Control
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Orders Dashboard Modal -->
+    <div id="orders-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-qova-cream w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-2xl p-6 relative border border-qova-gold flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-qova-beige">
+                <h3 class="font-serif text-2xl font-bold text-qova-charcoal flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-list text-qova-gold"></i> Customer Orders Dashboard
+                </h3>
+                <button type="button" onclick="toggleOrdersModal()" class="text-qova-slate hover:text-qova-charcoal p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div id="orders-list-container" class="flex-1 overflow-y-auto py-4 space-y-4"></div>
+
+            <div class="pt-4 border-t border-qova-beige flex justify-between items-center">
+                <button type="button" onclick="clearAllOrders()" class="bg-red-900/80 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition">
+                    Clear All Orders History
+                </button>
+                <button type="button" onclick="toggleOrdersModal()" class="bg-qova-charcoal text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-qova-gold hover:text-qova-charcoal transition">
+                    Close Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div id="image-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-4xl max-h-[90vh] flex items-center justify-center" onclick="event.stopPropagation()">
+            <button type="button" onclick="closeImageModal()" class="absolute -top-12 right-0 text-white hover:text-qova-gold text-3xl p-2 focus:outline-none">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="lightbox-img" src="" alt="Full Product View" class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-qova-gold/30">
+        </div>
+    </div>
+
+    <!-- Add Product Panel (Admin Only) -->
+    <div id="add-product-panel" class="hidden max-w-7xl mx-auto px-4 pt-8 w-full">
+        <div class="bg-white rounded-2xl p-6 border border-qova-gold shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-serif text-xl font-bold text-qova-charcoal">Add New Product</h3>
+                <button type="button" onclick="toggleAddProductForm()" class="text-qova-slate hover:text-qova-charcoal text-xs">Close</button>
+            </div>
+            
+            <form onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                <div>
+                    <label class="block font-medium text-qova-slate mb-1">Product Title *</label>
+                    <input type="text" id="new-p-name" required placeholder="e.g. Classic Tailored Suit" class="w-full border border-qova-beige rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block font-medium text-qova-slate mb-1">Category *</label>
+                    <select id="new-p-cat" class="w-full border border-qova-beige rounded-lg p-2.5">
+                        <option value="hoodie">hoodie</option> 
+                        <option value="suit">suit</option> 
+                        <option value="outfit">outfit</option>
+                        <option value="t-shirt">t-shirt</option>
+                        <option value="sweetpants">sweatpants</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-qova-slate mb-1">Price (EGP) *</label>
+                    <input type="number" id="new-p-price" required placeholder="3200" class="w-full border border-qova-beige rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block font-medium text-qova-slate mb-1">Image URL *</label>
+                    <input type="url" id="new-p-img" required placeholder="https://..." class="w-full border border-qova-beige rounded-lg p-2.5">
+                </div>
+                <div class="sm:col-span-full">
+                    <button type="submit" class="w-full bg-qova-gold text-qova-charcoal font-bold py-3 rounded-lg hover:bg-qova-charcoal hover:text-white transition">
+                        Save & Publish Product Online
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product Catalog Grid -->
+    <section class="py-16 max-w-7xl mx-auto px-4 w-full flex-1">
+        <div class="text-center mb-12">
+            <span class="text-xs uppercase tracking-[0.3em] text-qova-gold font-medium">Curated Ready-to-Wear</span>
+            <h2 class="font-serif text-3xl sm:text-5xl text-qova-charcoal mt-1">QOVA Atelier Selection</h2>
+            <div class="w-12 h-0.5 bg-qova-gold mx-auto mt-4"></div>
+        </div>
+
+        <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"></div>
+    </section>
+
+    <!-- Shopping Bag Drawer -->
+    <div id="cart-drawer" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex justify-end">
+        <div class="w-full max-w-md bg-qova-cream h-full p-6 flex flex-col shadow-2xl border-l border-qova-beige">
+            <div class="flex items-center justify-between pb-4 border-b border-qova-beige">
+                <h3 class="font-serif text-2xl text-qova-charcoal">Your Shopping Bag</h3>
+                <button type="button" onclick="toggleCartDrawer()" class="text-qova-slate hover:text-qova-charcoal p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div id="cart-items-list" class="flex-1 overflow-y-auto py-4 space-y-4"></div>
+
+            <div class="pt-4 border-t border-qova-beige space-y-3">
+                <div class="flex justify-between text-sm font-semibold text-qova-charcoal">
+                    <span>Total Subtotal:</span>
+                    <span id="cart-total" class="text-qova-gold font-serif text-xl font-bold">0 EGP</span>
+                </div>
+                <button type="button" onclick="openCheckoutModal()" class="w-full bg-qova-gold text-qova-charcoal py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-qova-charcoal hover:text-white transition shadow-lg flex items-center justify-center gap-2">
+                    Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkout-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-qova-cream w-full max-w-lg max-h-[90vh] rounded-2xl shadow-2xl p-6 relative border border-qova-gold flex flex-col overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-qova-beige">
+                <h3 class="font-serif text-2xl font-bold text-qova-charcoal flex items-center gap-2">
+                    <i class="fa-solid fa-credit-card text-qova-gold"></i> Checkout Details
+                </h3>
+                <button type="button" onclick="closeCheckoutModal()" class="text-qova-slate hover:text-qova-charcoal p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Checkout Form -->
+            <form id="checkout-form" onsubmit="handleCheckoutSubmit(event)" class="py-4 space-y-3 text-xs flex-1">
+                <div>
+                    <label class="block text-qova-slate mb-1">Full Name *</label>
+                    <input type="text" id="cust-name" required placeholder="name" class="w-full bg-white border border-qova-beige rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block text-qova-slate mb-1">Phone Number *</label>
+                    <input type="tel" id="cust-phone" required placeholder="010XXXXXXXX" class="w-full bg-white border border-qova-beige rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block text-qova-slate mb-1">Email Address *</label>
+                    <input type="email" id="cust-email" required placeholder="Email" class="w-full bg-white border border-qova-beige rounded-lg p-2.5">
+                </div>
+                
+                <!-- طريقة الدفع -->
+                <div>
+                    <label class="block text-qova-slate mb-1 font-bold text-qova-charcoal">Payment Method *</label>
+                    <select id="cust-payment" class="w-full bg-white border border-qova-gold rounded-lg p-2.5 font-semibold text-qova-charcoal">
+                        <option value="Cash on Delivery">Cash on Delivery (الدفع عند الاستلام)</option>
+                    </select>
+                </div>
+
+                <!-- قائمة جميع المحافظات المصرية -->
+                <div>
+                    <label class="block text-qova-slate mb-1">Governorate (المحافظة) *</label>
+                    <select id="cust-gov" class="w-full bg-white border border-qova-beige rounded-lg p-2.5">
+                        <option value="Cairo">القاهرة (Cairo)</option>
+                        <option value="Giza">الجيزة (Giza)</option>
+                        <option value="Alexandria">الإسكندرية (Alexandria)</option>
+                        <option value="Qalyubia">القليوبية (Qalyubia)</option>
+                        <option value="Gharbia">الغربية (Gharbia)</option>
+                        <option value="Dakahlia">الدقهلية / المنصورة (Dakahlia)</option>
+                        <option value="Sharqia">الشرقية (Sharqia)</option>
+                        <option value="Monufia">المنوفية (Monufia)</option>
+                        <option value="Beheira">البحيرة (Beheira)</option>
+                        <option value="Kafr El Sheikh">كفر الشيخ (Kafr El Sheikh)</option>
+                        <option value="Damietta">دمياط (Damietta)</option>
+                        <option value="Port Said">بورسعيد (Port Said)</option>
+                        <option value="Ismailia">الإسماعيلية (Ismailia)</option>
+                        <option value="Suez">السويس (Suez)</option>
+                        <option value="Fayoum">الفيوم (Fayoum)</option>
+                        <option value="Beni Suef">بني سويف (Beni Suef)</option>
+                        <option value="Minya">المنيا (Minya)</option>
+                        <option value="Asyut">أسيوط (Asyut)</option>
+                        <option value="Sohag">سوهاج (Sohag)</option>
+                        <option value="Qena">قنا (Qena)</option>
+                        <option value="Luxor">الأقصر (Luxor)</option>
+                        <option value="Aswan">أسوان (Aswan)</option>
+                        <option value="Red Sea">البحر الأحمر (Red Sea)</option>
+                        <option value="New Valley">الوادي الجديد (New Valley)</option>
+                        <option value="Matrouh">مطروح (Matrouh)</option>
+                        <option value="North Sinai">شمال سيناء (North Sinai)</option>
+                        <option value="South Sinai">جنوب سيناء (South Sinai)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-qova-slate mb-1">Detailed Address *</label>
+                    <textarea id="cust-address" required rows="2" placeholder="Street / Building / Floor..." class="w-full bg-white border border-qova-beige rounded-lg p-2.5"></textarea>
+                </div>
+                <div>
+                    <label class="block text-qova-slate mb-1">Delivery Notes (Optional)</label>
+                    <input type="text" id="cust-notes" placeholder="e.g. Call before delivery" class="w-full bg-white border border-qova-beige rounded-lg p-2.5">
+                </div>
+
+                <div class="pt-3 border-t border-qova-beige flex justify-between text-sm font-semibold text-qova-charcoal">
+                    <span>Total Final Amount:</span>
+                    <span id="checkout-modal-total" class="text-qova-gold font-serif text-xl font-bold">0 EGP</span>
+                </div>
+
+                <button type="submit" id="submit-btn" class="w-full bg-qova-gold text-qova-charcoal py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-qova-charcoal hover:text-white transition shadow-lg mt-2">
+                    Confirm Order
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 bg-qova-charcoal text-white px-5 py-3 rounded-xl shadow-2xl text-xs transition-all duration-300 translate-y-32 opacity-0 border border-qova-gold">
+        <span id="toast-message">Action successful!</span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-qova-charcoal text-qova-sand pt-12 pb-8 border-t border-qova-beige/20 text-center text-xs text-qova-slate">
+        <p>©️ 2026 QOVA Modest Wear Cairo. All rights reserved.</p>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        const SUPABASE_URL = 'https://seiddcpeneobfcpgqbtk.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_N9VqWGOsV95ElNOBLy2vng_wqzc9Eb0';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const TELEGRAM_BOT_TOKEN = '9197632418:AAFjC2Svi0D4iMh_vgOQgtubQFrconuikXo';
+        const TELEGRAM_CHAT_ID = '6250879624,';
+
+        const FALLBACK_IMG = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop';
+        
+        const DEFAULT_PRODUCTS = [
+            { id: 'q1', name: 'Executive Tailored Suit', category: 'suit', price: 3450, image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop', fabric: 'Heavyweight Matte Crepe' },
+            { id: 'q2', name: 'Sahara Sand Daily Outfit', category: 'outfit', price: 2850, image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop', fabric: '100% Egyptian Linen' },
+            { id: 'q3', name: 'Minimalist Cotton T-Shirt', category: 't-shirt', price: 1200, image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800&auto=format&fit=crop', fabric: 'Pure Combed Cotton' },
+            { id: 'q4', name: 'Comfort Lounge Sweetpants', category: 'sweetpants', price: 1650, image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop', fabric: 'Organic Fleece Blend' }
+        ];
+
+        let PRODUCTS = [];
+        let cart = [];
+        let orders = [];
+        let isAdminMode = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            cart = JSON.parse(localStorage.getItem('qova_cart') || '[]');
+            orders = JSON.parse(localStorage.getItem('qova_customer_orders') || '[]');
+            isAdminMode = localStorage.getItem('qova_admin_logged') === 'true';
+            
+            await fetchProductsFromDb();
+
+            if (isAdminMode) enableAdminUI();
+            updateCartUI();
+            updateOrdersCount();
+        });
+
+        async function fetchProductsFromDb() {
+            const { data, error } = await supabaseClient.from('products').select('*');
+            if (error) {
+                console.error('Error fetching products:', error);
+                PRODUCTS = [...DEFAULT_PRODUCTS];
+            } else if (data && data.length > 0) {
+                PRODUCTS = data.map(row => ({
+                    id: row.id,
+                    ...row.product_data
+                }));
+            } else {
+                PRODUCTS = [...DEFAULT_PRODUCTS];
+                for (let p of PRODUCTS) {
+                    await supabaseClient.from('products').insert([{
+                        id: p.id,
+                        product_data: { name: p.name, category: p.category, price: p.price, image: p.image, fabric: p.fabric }
+                    }]);
+                }
+            }
+            renderProducts(PRODUCTS);
+        }
+
+        function saveOrdersPermanently() {
+            localStorage.setItem('qova_customer_orders', JSON.stringify(orders));
+            updateOrdersCount();
+        }
+
+        function updateOrdersCount() {
+            document.getElementById('orders-count').innerText = orders.length;
+        }
+
+        function renderProducts(items) {
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = '';
+            
+            items.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'group flex flex-col bg-qova-cream rounded-2xl overflow-hidden border border-qova-beige/60 shadow-md transition hover:shadow-xl';
+                
+                const adminHeader = isAdminMode ? `
+                    <div class="bg-qova-charcoal text-white p-2 text-xs flex justify-between items-center border-b border-qova-gold">
+                        <span class="text-[10px] text-qova-gold font-bold">ADMIN CONTROLS</span>
+                        <button onclick="deleteProduct('${product.id}')" class="bg-red-800 text-white px-2 py-0.5 rounded text-[10px] hover:bg-red-600 transition"><i class="fa-solid fa-trash"></i> Delete</button>
+                    </div>
+                ` : '';
+
+                card.innerHTML = `
+                    ${adminHeader}
+                    <div class="relative aspect-[3/4] overflow-hidden bg-qova-sand cursor-pointer" onclick="openImageModal('${product.image}')" title="Click to view full image">
+                        <img src="${product.image}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" alt="${product.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                            <span class="bg-white/90 text-qova-charcoal px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-md"><i class="fa-solid fa-expand"></i> View Full Image</span>
+                        </div>
+                    </div>
+                    <div class="p-5 flex flex-col flex-1">
+                        <span class="text-[10px] uppercase tracking-widest text-qova-gold font-bold">${product.category}</span>
+                        <h3 class="font-serif text-lg text-qova-charcoal font-semibold mt-0.5">${product.name}</h3>
+                        <p class="text-xs text-qova-slate mt-1">${product.fabric || 'Custom Luxury Tailoring'}</p>
+                        
+                        <div class="mt-3">
+                            <label class="block text-[10px] uppercase tracking-wider text-qova-slate font-semibold mb-1">Select Size:</label>
+                            <div class="flex gap-2" id="sizes-${product.id}">
+                                <button type="button" onclick="selectSize('${product.id}', 'S', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">S</button>
+                                <button type="button" onclick="selectSize('${product.id}', 'M', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-gold bg-qova-gold text-qova-charcoal font-bold rounded-lg transition">M</button>
+                                <button type="button" onclick="selectSize('${product.id}', 'L', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">L</button>
+                                <button type="button" onclick="selectSize('${product.id}', 'XL', this)" class="size-btn-${product.id} px-2.5 py-1 text-xs border border-qova-beige rounded-lg hover:border-qova-gold transition">XL</button>
+                            </div>
+                        </div>
+
+                        <div class="mt-auto pt-4 flex items-center justify-between border-t border-qova-beige/50">
+                            <span class="font-serif text-lg font-bold text-qova-charcoal">${product.price} EGP</span>
+                            <button onclick="addToCartWithSelectedSize('${product.id}')" class="bg-qova-gold text-qova-charcoal hover:bg-qova-charcoal hover:text-white px-3.5 py-2 rounded-xl font-bold text-xs transition">Add to Bag</button>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        const selectedSizes = {};
+        function selectSize(productId, size, btn) {
+            selectedSizes[productId] = size;
+            const buttons = document.querySelectorAll(`.size-btn-${productId}`);
+            buttons.forEach(b => {
+                b.classList.remove('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
+                b.classList.add('border-qova-beige');
+            });
+            btn.classList.add('bg-qova-gold', 'text-qova-charcoal', 'font-bold');
+            btn.classList.remove('border-qova-beige');
+        }
+
+        function addToCartWithSelectedSize(id) {
+            const p = PRODUCTS.find(item => item.id === id);
+            if(!p) return;
+            const chosenSize = selectedSizes[id] || 'M';
+            const itemKey = `${id}-${chosenSize}`;
+            const existingItem = cart.find(i => i.itemKey === itemKey);
+
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                cart.push({ ...p, itemKey: itemKey, size: chosenSize, quantity: 1 });
+            }
+
+            localStorage.setItem('qova_cart', JSON.stringify(cart));
+            updateCartUI();
+            showToast(`Added (${chosenSize}) to bag!`);
+        }
+
+        function removeFromCart(itemKey) {
+            cart = cart.filter(i => i.itemKey !== itemKey);
+            localStorage.setItem('qova_cart', JSON.stringify(cart));
+            updateCartUI();
+            showToast('Item removed from bag');
+        }
+
+        function updateCartUI() {
+            document.getElementById('cart-badge').innerText = cart.reduce((s, i) => s + i.quantity, 0);
+            const list = document.getElementById('cart-items-list');
+            list.innerHTML = cart.length === 0 ? '<p class="text-center text-xs text-qova-slate py-8">Bag is currently empty.</p>' : '';
+            
+            let total = 0;
+            cart.forEach(i => {
+                total += i.price * i.quantity;
+                list.innerHTML += `
+                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-qova-beige text-xs">
+                        <div>
+                            <p class="font-semibold text-qova-charcoal">${i.name}</p>
+                            <p class="text-qova-gold font-bold">Size: ${i.size} | ${i.price} EGP × ${i.quantity}</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold">${i.price * i.quantity} EGP</span>
+                            <button onclick="removeFromCart('${i.itemKey}')" class="text-red-600 hover:text-red-800 p-1 text-sm"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('cart-total').innerText = total + ' EGP';
+        }
+
+        function openImageModal(imgUrl) {
+            document.getElementById('lightbox-img').src = imgUrl;
+            document.getElementById('image-modal').classList.remove('hidden');
+        }
+
+        function closeImageModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        function filterCategory(cat) {
+            if (cat === 'all') renderProducts(PRODUCTS);
+            else renderProducts(PRODUCTS.filter(p => p.category === cat));
+        }
+
+        function openAdminModal() { document.getElementById('admin-login-modal').classList.remove('hidden'); }
+        function closeAdminModal() { document.getElementById('admin-login-modal').classList.add('hidden'); }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('admin-email').value.trim();
+            const pass = document.getElementById('admin-pass').value.trim();
+
+            if (email === 'govabrandaaannn123@gmail.com' && pass === 'QOVAABDODIDA1011') {
+                isAdminMode = true;
+                localStorage.setItem('qova_admin_logged', 'true');
+                closeAdminModal();
+                enableAdminUI();
+                renderProducts(PRODUCTS);
+                showToast('Admin Mode Activated!');
+            } else {
+                document.getElementById('admin-err').classList.remove('hidden');
+            }
+        }
+
+        function enableAdminUI() {
+            document.getElementById('admin-banner').classList.remove('hidden');
+            document.body.classList.add('admin-mode');
+        }
+
+        function adminLogout() {
+            isAdminMode = false;
+            localStorage.setItem('qova_admin_logged', 'false');
+            document.getElementById('admin-banner').classList.add('hidden');
+            document.getElementById('add-product-panel').classList.add('hidden');
+            document.body.classList.remove('admin-mode');
+            renderProducts(PRODUCTS);
+            showToast('Logged out to Customer View');
+        }
+
+        async function deleteProduct(id) {
+            const { error } = await supabaseClient.from('products').delete().eq('id', id);
+            if (error) {
+                alert('Error deleting product');
+                return;
+            }
+            PRODUCTS = PRODUCTS.filter(p => p.id !== id);
+            renderProducts(PRODUCTS);
+            showToast('Product removed from database!');
+        }
+
+        async function handleAddNewProduct(e) {
+            e.preventDefault();
+            const imgInput = document.getElementById('new-p-img').value.trim();
+            
+            const newId = 'qova-' + Date.now();
+            const productObj = {
+                name: document.getElementById('new-p-name').value.trim(),
+                category: document.getElementById('new-p-cat').value,
+                price: parseFloat(document.getElementById('new-p-price').value),
+                image: imgInput || FALLBACK_IMG,
+                fabric: 'Custom Luxury Tailoring'
+            };
+
+            const { error } = await supabaseClient.from('products').insert([{
+                id: newId,
+                product_data: productObj
+            }]);
+
+            if (error) {
+                alert('Error adding product to database');
+                return;
+            }
+            
+            PRODUCTS.unshift({ id: newId, ...productObj });
+            renderProducts(PRODUCTS);
+            toggleAddProductForm();
+            e.target.reset();
+            showToast('Product published online successfully!');
+        }
+
+        function openCheckoutModal() {
+            if (cart.length === 0) {
+                alert('Your shopping bag is empty!');
+                return;
+            }
+            let total = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+            document.getElementById('checkout-modal-total').innerText = total + ' EGP';
+            
+            toggleCartDrawer();
+            document.getElementById('checkout-modal').classList.remove('hidden');
+        }
+
+        function closeCheckoutModal() {
+            document.getElementById('checkout-modal').classList.add('hidden');
+        }
+
+        function handleCheckoutSubmit(e) {
+            e.preventDefault();
+
+            let orderSummary = cart.map(i => `• ${i.name} (مقاس: ${i.size} | كمية: ${i.quantity}) - ${i.price * i.quantity} EGP`).join('\n');
+            let totalAmount = cart.reduce((s, i) => s + (i.price * i.quantity), 0) + ' EGP';
+            let method = document.getElementById('cust-payment').value;
+            let name = document.getElementById('cust-name').value;
+            let phone = document.getElementById('cust-phone').value;
+            let email = document.getElementById('cust-email').value;
+            let gov = document.getElementById('cust-gov').value;
+            let address = document.getElementById('cust-address').value;
+            let notes = document.getElementById('cust-notes').value || 'لا يوجد';
+
+            let messageText = `🛍️ *أوردر جديد في متجر QOVA!*\n\n` +
+                              `👤 *العميل:* ${name}\n` +
+                              `📞 *التليفون:* ${phone}\n` +
+                              `📧 *الإيميل:* ${email}\n` +
+                              `📍 *المحافظة:* ${gov}\n` +
+                              `🏠 *العنوان:* ${address}\n` +
+                              `💳 *طريقة الدفع:* ${method}\n` +
+                              `📝 *ملاحظات:* ${notes}\n\n` +
+                              `🛒 *المنتجات المطلوبة:*\n${orderSummary}\n\n` +
+                              `💰 *الإجمالي النهائي:* ${totalAmount}`;
+
+            let telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&parse_mode=Markdown&text=` + encodeURIComponent(messageText);
+            
+            fetch(telegramUrl).catch(() => {});
+
+            const newOrder = {
+                id: 'ord-' + Date.now(),
+                name, phone, email, governorate: gov, address,
+                paymentMethod: method,
+                receiptStatus: 'None',
+                notes, items: [...cart], total: totalAmount,
+                date: new Date().toLocaleString()
+            };
+            orders.unshift(newOrder);
+            saveOrdersPermanently();
+
+            cart = [];
+            localStorage.removeItem('qova_cart');
+            
+            showToast('تم إرسال الطلب بنجاح!');
+            
+            setTimeout(() => {
+                closeCheckoutModal();
+                window.location.href = window.location.pathname;
+            }, 1000);
+        }
+
+        function toggleOrdersModal() {
+            const modal = document.getElementById('orders-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                renderOrdersList();
+            }
+        }
+
+        function renderOrdersList() {
+            const container = document.getElementById('orders-list-container');
+            if (orders.length === 0) {
+                container.innerHTML = '<p class="text-center text-xs text-qova-slate py-8">No customer orders recorded yet.</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            orders.forEach(order => {
+                let itemsHtml = order.items.map(i => `<li class="text-[11px] text-qova-slate">• ${i.name} (Size: ${i.size}, Qty: ${i.quantity}x) - ${i.price * i.quantity} EGP</li>`).join('');
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white p-4 rounded-xl border border-qova-beige shadow-sm space-y-2 text-xs';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-qova-beige pb-2">
+                        <span class="font-bold text-qova-charcoal">Order #${order.id} (${order.date})</span>
+                        <button onclick="deleteOrder('${order.id}')" class="bg-red-800 text-white px-2 py-1 rounded text-[10px] hover:bg-red-600 transition"><i class="fa-solid fa-trash"></i> Delete Order</button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <p><strong>Customer:</strong> ${order.name}</p>
+                            <p><strong>Phone:</strong> ${order.phone}</p>
+                            <p><strong>Method:</strong> <span class="text-qova-gold font-bold">${order.paymentMethod}</span></p>
+                            <p><strong>Receipt:</strong> ${order.receiptStatus}</p>
+                        </div>
+                        <div>
+                            <p><strong>Governorate:</strong> ${order.governorate}</p>
+                            <p><strong>Address:</strong> ${order.address}</p>
+                            <p class="font-bold text-qova-gold mt-1">Total: ${order.total}</p>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-qova-beige/60">
+                        <p class="font-semibold text-qova-charcoal mb-1">Purchased Items:</p>
+                        <ul class="space-y-0.5">${itemsHtml}</ul>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function deleteOrder(id) {
+            orders = orders.filter(o => o.id !== id);
+            saveOrdersPermanently();
+            renderOrdersList();
+            showToast('Order removed from history');
+        }
+
+        function clearAllOrders() {
+            if(confirm('Are you sure you want to delete all orders history?')) {
+                orders = [];
+                saveOrdersPermanently();
+                renderOrdersList();
+                showToast('All orders cleared');
+            }
+        }
+
+        function toggleCartDrawer() { document.getElementById('cart-drawer').classList.toggle('hidden'); }
+        function toggleAddProductForm() { document.getElementById('add-product-panel').classList.toggle('hidden'); }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            t.classList.remove('translate-y-32', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
