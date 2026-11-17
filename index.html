@@ -814,7 +814,7 @@ async function handleCheckoutSubmit(e) {
     try {
         const { data, error } =
             await supabaseClient.functions.invoke(
-                'send-telegram-order',
+                'send-telegram-orders',
                 {
                     body: newOrder
                 }
