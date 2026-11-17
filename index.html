@@ -772,46 +772,64 @@
         document.getElementById('checkout-modal').classList.add('hidden');
     }
 
-    function handleCheckoutSubmit(e) {
-        e.preventDefault();
+ 
+async function handleCheckoutSubmit(e) {
+    e.preventDefault();
 
-        if (cart.length === 0) {
-            alert('Your shopping bag is empty!');
-            return;
+    if (cart.length === 0) {
+        alert('Your shopping bag is empty!');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending Order...';
+
+    const total = cart.reduce(
+        (sum, item) => sum + (item.price * item.quantity), 0
+    );
+
+    const newOrder = {
+        id: 'ord-' + Date.now(),
+        name: document.getElementById('cust-name').value.trim(),
+        phone: document.getElementById('cust-phone').value.trim(),
+        email: document.getElementById('cust-email').value.trim(),
+        governorate: document.getElementById('cust-gov').value,
+        address: document.getElementById('cust-address').value.trim(),
+        paymentMethod: document.getElementById('cust-payment').value,
+        notes: document.getElementById('cust-notes').value.trim() || 'لا يوجد',
+
+        items: cart.map(item => ({
+            name: item.name,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price
+        })),
+
+        total: total + ' EGP',
+
+        date: new Date().toLocaleString()
+    };
+
+    try {
+        const { data, error } =
+            await supabaseClient.functions.invoke(
+                'send-telegram-order',
+                {
+                    body: newOrder
+                }
+            );
+
+        if (error) {
+            throw error;
         }
 
-        const orderSummary = cart.map(item =>
-            `• ${item.name} (مقاس: ${item.size} | كمية: ${item.quantity}) - ${item.price * item.quantity} EGP`
-        ).join('\n');
+        if (!data || data.success !== true) {
+            throw new Error(
+                data?.error || 'Telegram sending failed'
+            );
+        }
 
-        const totalAmount =
-            cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) + ' EGP';
-
-        const method = document.getElementById('cust-payment').value;
-        const name = document.getElementById('cust-name').value.trim();
-        const phone = document.getElementById('cust-phone').value.trim();
-        const email = document.getElementById('cust-email').value.trim();
-        const gov = document.getElementById('cust-gov').value;
-        const address = document.getElementById('cust-address').value.trim();
-        const notes = document.getElementById('cust-notes').value.trim() || 'لا يوجد';
-
-        const newOrder = {
-            id: 'ord-' + Date.now(),
-            name,
-            phone,
-            email,
-            governorate: gov,
-            address,
-            paymentMethod: method,
-            receiptStatus: 'None',
-            notes,
-            items: [...cart],
-            total: totalAmount,
-            summary: orderSummary,
-            date: new Date().toLocaleString()
-        };
-
-        // Current demo behavior: saved only in this browser.
         orders.unshift(newOrder);
         saveOrdersPermanently();
 
@@ -820,19 +838,24 @@
 
         updateCartUI();
 
-        showToast('Demo order saved on this device only.');
+        alert('تم إرسال طلبك بنجاح إلى المتجر ❤️');
+
+        closeCheckoutModal();
+        e.target.reset();
+
+    } catch (error) {
+        console.error('Order error:', error);
 
         alert(
-            'تم حفظ الطلب على هذا الجهاز فقط.\n' +
-            'الطلب لم يتم إرساله إلى المتجر أو Telegram.'
+            'فشل إرسال الطلب إلى Telegram.\n' +
+            'حاول مرة أخرى، ولم يتم حذف منتجات السلة.'
         );
 
-        setTimeout(() => {
-            closeCheckoutModal();
-            window.location.href = window.location.pathname;
-        }, 1000);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirm Order';
     }
-
+}
     // ORDERS DASHBOARD
     function saveOrdersPermanently() {
         localStorage.setItem('qova_customer_orders', JSON.stringify(orders));
